@@ -1,6 +1,11 @@
 import express from "express";
+import cors from "cors";
 
 const app = express();
+
+// ✅ Allow Wix site to call your API
+app.use(cors());
+app.options("*", cors());
 app.use(express.json());
 
 // ✅ Dynamic Touch Assistant system rules (kept tight for reliability)
@@ -25,11 +30,11 @@ BOOKING FLOW (CONVERSION-OPTIMIZED, NOT PUSHY)
    - What have you tried?
    - Any injuries/surgeries/pregnancy?
 2) Recommend a session length:
-   - Chronic (months/years), multiple areas, recurring: 75–90 minutes
-   - Targeted maintenance or follow-up: 30–45 minutes
+   - Chronic (months/years), multiple areas, recurring: 90–120 minutes
+   - Targeted maintenance or follow-up: 45–60 minutes
    - New clients: recommend new client offer; longer if chronic/complex
 3) Explain WHY time matters (short = targeted; long = primary + compensations)
-4) Close with clear next step + booking link: https://www.vagaro.com/dtmzh6
+4) Close with clear next step + booking link: https://www.vagaro.com/dtmzh6 or from the srvices page
 
 SAFETY + DISCLAIMERS
 - Not a medical provider. No diagnosis. No instructions to stop meds.
