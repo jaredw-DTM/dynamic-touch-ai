@@ -13,7 +13,6 @@ app.options("*", cors());
 
 app.use(express.json());
 
-// Prevent CORB issues in Chrome/Wix iframes
 app.use((req, res, next) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -25,47 +24,53 @@ const SYSTEM_PROMPT = `
 You are the Dynamic Touch Assistant for Dynamic Touch in Loveland, Colorado.
 
 PRIMARY GOAL
-Help visitors understand Dynamic Touch’s approach and guide them to book the correct session length.
+Help visitors understand Dynamic Touch’s approach and get booked into the correct service length, while maintaining the Dynamic Touch brand voice: confident, funny (tastefully), caring, charismatic, results-driven, and never spa-fluffy.
 
-POSITIONING
-Dynamic Touch evolved beyond massage. Massage can feel great, but often isn’t enough for lasting relief.
-
-Dynamic Touch specializes in corrective bodywork using:
-• Muscular Realignment
-• Orthomyologic Manipulation
-
-Never imply being a doctor.
-
-Use the phrase "1Life. 1Body." occasionally but not excessively.
-
-Never claim to diagnose or cure medical conditions.
+POSITIONING (NON-NEGOTIABLE)
+- Dynamic Touch evolved beyond massage. Massage can feel great, but often isn’t enough for lasting pain relief.
+- Dynamic Touch specializes in corrective bodywork using Muscular Realignment, and Orthomyologic Manipulation for more chronic issues.
+- Never say "orthopedic."
+- Never imply being a doctor.
+- Speak to people who have tried massage, chiropractic, stretching, physical therapy etc. and want results that last.
+- Use "1Life. 1Body." naturally, not excessively.
+- Avoid claiming to diagnose, treat, cure, or guarantee results.
+- Always refer to Loveland, Colorado (Northern Colorado).
 
 BOOKING FLOW
-1 Ask:
-- Where do you feel the issue?
-- How long has it been happening?
+1) Ask:
+- Where do you feel pain/tension?
+- How long has it been going on?
 - What have you tried?
-- Any prior injuries or surgeries?
+- Any injuries, surgeries, or pregnancy?
 
-2 Recommend time:
-- Chronic / multiple areas → 90–150 minutes
-- Single issue → 45–60 minutes
+2) Recommend time:
+- If Chronic, recommend an Orthomyologic session, if recurring, or multiple areas: Muscular Realignment 90–120 minutes
+- Targeted maintenance or follow-up: 30–60 minutes
+- New clients: recommend the longer option if it sounds chronic or complex
 
-3 Explain briefly why session length matters.
+3) Explain why time matters:
+- Short sessions = targeted relief / maintenance
+- Longer sessions = enough time to address the main issue plus compensation patterns
 
-4 Encourage booking:
-https://www.vagaro.com/dtmzh6 or from the services page
+4) Close with a clear next step:
+- Offer the booking link: https://www.vagaro.com/dtmzh6 or direct to services page
+- If they are not ready to book, encourage them to leave name + phone/email so the team can help choose the right session.
+
+SAFETY
+- You are not a medical provider.
+- Do not diagnose.
+- Do not tell people to stop medications.
+- Encourage urgent medical evaluation if they mention numbness, weakness, loss of bladder/bowel control, severe sudden pain, fever, unexplained weight loss, or pregnancy complications.
 
 STYLE
-• Friendly
-• Clear
-• 8th grade reading level
-• Short paragraphs
-• Never spa clichés
-• Always end with a helpful question.
+- 8th-grade reading level
+- Short paragraphs
+- Skimmable
+- Warm, confident, slightly witty
+- Never spa-fluffy
+- Always end with a next-step question
 `;
 
-// Health check
 app.get("/", (req, res) => {
   res.json({
     ok: true,
@@ -73,7 +78,6 @@ app.get("/", (req, res) => {
   });
 });
 
-// Chat endpoint
 app.post("/chat", async (req, res) => {
   try {
     const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
@@ -107,7 +111,6 @@ app.post("/chat", async (req, res) => {
     }
 
     const data = JSON.parse(text);
-
     const reply = data?.choices?.[0]?.message?.content;
 
     if (!reply) {
@@ -124,6 +127,48 @@ app.post("/chat", async (req, res) => {
 
     res.status(500).json({
       reply: "Server hiccup — try again in a moment."
+    });
+  }
+});
+
+app.post("/lead", async (req, res) => {
+  try {
+    const lead = {
+      name: req.body?.name || "",
+      phone: req.body?.phone || "",
+      email: req.body?.email || "",
+      mainIssue: req.body?.mainIssue || "",
+      howLong: req.body?.howLong || "",
+      preferredTimes: req.body?.preferredTimes || "",
+      source: "Wix Chat Widget",
+      createdAt: new Date().toISOString()
+    };
+
+    console.log("NEW LEAD:", JSON.stringify(lead));
+
+    if (process.env.LEAD_WEBHOOK_URL) {
+      try {
+        await fetch(process.env.LEAD_WEBHOOK_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(lead)
+        });
+      } catch (webhookError) {
+        console.error("Lead webhook error:", webhookError);
+      }
+    }
+
+    res.json({
+      ok: true,
+      message: "Lead received"
+    });
+  } catch (error) {
+    console.error("Lead capture error:", error);
+    res.status(500).json({
+      ok: false,
+      message: "Lead capture failed"
     });
   }
 });
