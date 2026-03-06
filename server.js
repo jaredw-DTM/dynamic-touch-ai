@@ -4,9 +4,22 @@ import cors from "cors";
 const app = express();
 
 // ✅ Allow Wix site to call your API
-app.use(cors());
+import cors from "cors";
+
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 app.options("*", cors());
 app.use(express.json());
+
+// ✅ Make responses clearly JSON + avoid CORB confusion
+app.use((req, res, next) => {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  next();
+});
 
 // ✅ Dynamic Touch Assistant system rules (kept tight for reliability)
 const SYSTEM_PROMPT = `
