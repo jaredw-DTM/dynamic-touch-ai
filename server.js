@@ -137,27 +137,24 @@ app.post("/lead", async (req, res) => {
       name: req.body?.name || "",
       phone: req.body?.phone || "",
       email: req.body?.email || "",
-      mainIssue: req.body?.mainIssue || "",
-      howLong: req.body?.howLong || "",
-      preferredTimes: req.body?.preferredTimes || "",
-      source: "Wix Chat Widget",
-      createdAt: new Date().toISOString()
+      message: `
+Main issue: ${req.body?.mainIssue || ""}
+How long: ${req.body?.howLong || ""}
+Preferred times: ${req.body?.preferredTimes || ""}
+Source: Wix Chat Widget
+      `.trim()
     };
 
     console.log("NEW LEAD:", JSON.stringify(lead));
 
     if (process.env.LEAD_WEBHOOK_URL) {
-      try {
-        await fetch(process.env.LEAD_WEBHOOK_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(lead)
-        });
-      } catch (webhookError) {
-        console.error("Lead webhook error:", webhookError);
-      }
+      await fetch(process.env.LEAD_WEBHOOK_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(lead)
+      });
     }
 
     res.json({
@@ -172,8 +169,6 @@ app.post("/lead", async (req, res) => {
     });
   }
 });
-
-const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
   console.log("Dynamic Touch AI server running on port", PORT);
