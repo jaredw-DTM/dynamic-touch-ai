@@ -304,7 +304,7 @@ function extractLeadFromMessages(messages = []) {
       "Main issue: " + mainIssue +
       " | How long: " + howLong +
       " | Preferred times: " + preferredTimes +
-      " | Source: Mia Website Chat"
+      " | Source: Ali Website Chat"
   };
 }
 
@@ -343,7 +343,7 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     service: "Dynamic Touch AI running",
-    assistant: "Mia",
+    assistant: "Ali",
     leadCapture: "enabled",
     leadExtraction: "latest-user-messages"
   });
