@@ -304,7 +304,7 @@ function extractLeadFromMessages(messages = []) {
       "Main issue: " + mainIssue +
       " | How long: " + howLong +
       " | Preferred times: " + preferredTimes +
-      " | Source: Ali Website Chat"
+      " | Source: Ali Website Chat",
     conversationSummary:
   "Main issue: " + mainIssue +
   " | How long: " + howLong +
