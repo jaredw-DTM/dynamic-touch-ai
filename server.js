@@ -305,6 +305,10 @@ function extractLeadFromMessages(messages = []) {
       " | How long: " + howLong +
       " | Preferred times: " + preferredTimes +
       " | Source: Ali Website Chat"
+    conversationSummary:
+  "Main issue: " + mainIssue +
+  " | How long: " + howLong +
+  " | Preferred times: " + preferredTimes
   };
 }
 
