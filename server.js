@@ -277,21 +277,25 @@ function extractLeadFromMessages(messages = []) {
   const phone = findLastMatch(text, /((?:\+1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4})/);
   const name = extractName(text);
 
-  const mainIssue = findLastMatch(
+  const mainIssue =
+  findLastMatch(
     text,
-    /(?:main issue is|issue is|problem is|dealing with|help with|pain in|pain is|i have|i've had|i am having|i'm having)\s+([^\n.]{2,90})/i
+    /(?:my\s+)?([a-zA-Z][^.,\n]{1,60}?)\s+(?:has|have)\s+been\s+(?:bothering|hurting|aching|painful)/i
+  ) ||
+  findLastMatch(
+    text,
+    /(?:main issue is|issue is|problem is|dealing with|help with|pain in|pain is|i have|i've had|i am having|i'm having)\s+([^\n.]{2,90}?)(?=\s+(?:for|since|and|but)\b|[.,\n]|$)/i
   );
 
-  const howLong = findLastMatch(
+const preferredTimes =
+  findLastMatch(
     text,
-    /(?:for|about|around|roughly|approximately)\s+(\d+\s*(?:days?|weeks?|months?|years?))/i
-  );
-
-  const preferredTimes = findLastMatch(
+    /(?:prefer|preferred|best time|available|appointment|appt)\s*(?:is|are|:|-)?\s*([^\n.]{2,90}?)(?=[.,\n]|$)/i
+  ) ||
+  findLastMatch(
     text,
-    /(?:prefer|preferred|best time|available|appointment|appt)\s+([^\n.]{2,90})/i
+    /\b(mornings?|afternoons?|evenings?|weekends?|weekdays?)\s+(?:work|works)\s+best\b/i
   );
-
   return {
     hasLead: Boolean(phone || email),
     name,
