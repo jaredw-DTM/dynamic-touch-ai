@@ -14,21 +14,21 @@ export function sourceFor(turn, ctx) {
   if (turn.intent === INTENTS.THIRD_PARTY) {
     return `${turn.platformAgent || ""} ${ctx.representingPlatform || ""}`.toLowerCase().includes("google") ? "Google AI / GBP" : "Third-Party Customer Agent";
   }
-  if (turn.intent === INTENTS.SOLICITATION) return "Ali Voice - Solicitation";
-  if (turn.intent === INTENTS.EXISTING) return "Ali Voice - Existing Client";
-  if (turn.intent === INTENTS.INFO) return "Ali Voice - Business Information";
-  if (turn.intent === INTENTS.ESCALATION) return "Ali Voice - Human Escalation";
-  return ctx.channel === "voice" ? "Ali Voice" : "Ali Website Chat";
+  if (turn.intent === INTENTS.SOLICITATION) return "Mia Voice - Solicitation";
+  if (turn.intent === INTENTS.EXISTING) return "Mia Voice - Existing Client";
+  if (turn.intent === INTENTS.INFO) return "Mia Voice - Business Information";
+  if (turn.intent === INTENTS.ESCALATION) return "Mia Voice - Human Escalation";
+  return ctx.channel === "voice" ? "Mia Voice" : "Mia Website Chat";
 }
 
 export function tagsFor(intent, platformAgent="") {
-  if (intent === INTENTS.PROSPECT) return ["Ali - Prospective Client"];
-  if (intent === INTENTS.THIRD_PARTY) return ["Ali - Prospective Client","Ali - Third-Party Customer Agent", ...(platformAgent.toLowerCase().includes("google") ? ["Google AI / GBP"] : [])];
-  if (intent === INTENTS.SOLICITATION) return ["Solicitation - Ali"];
-  if (intent === INTENTS.EXISTING) return ["Ali - Existing Client"];
-  if (intent === INTENTS.INFO) return ["Ali - Business Information"];
-  if (intent === INTENTS.ESCALATION) return ["Ali - Human Escalation"];
-  return ["Ali - Ambiguous"];
+  if (intent === INTENTS.PROSPECT) return ["Mia - Prospective Client"];
+  if (intent === INTENTS.THIRD_PARTY) return ["Mia - Prospective Client","Mia - Third-Party Customer Agent", ...(platformAgent.toLowerCase().includes("google") ? ["Google AI / GBP"] : [])];
+  if (intent === INTENTS.SOLICITATION) return ["Solicitation - Mia"];
+  if (intent === INTENTS.EXISTING) return ["Mia - Existing Client"];
+  if (intent === INTENTS.INFO) return ["Mia - Business Information"];
+  if (intent === INTENTS.ESCALATION) return ["Mia - Human Escalation"];
+  return ["Mia - Ambiguous"];
 }
 
 export function buildGhlPayload(turn, ctx) {
@@ -46,7 +46,7 @@ export function buildGhlPayload(turn, ctx) {
     return {
       ...common, name:clean(turn.vendor.representative), phone:clean(turn.vendor.phone), email:clean(turn.vendor.email),
       company:clean(turn.vendor.company), productOrServiceOffered:clean(turn.vendor.offering), reasonForCall:clean(turn.vendor.reason),
-      message:`Call Type: Solicitation / Vendor | Representative: ${clean(turn.vendor.representative)||"Not provided"} | Company: ${clean(turn.vendor.company)||"Not provided"} | Product / Service Offered: ${clean(turn.vendor.offering)||"Not provided"} | Phone: ${clean(turn.vendor.phone)||"Not provided"} | Email: ${clean(turn.vendor.email)||"Not provided"} | Reason for Call: ${clean(turn.vendor.reason)||"Not provided"} | Outcome: ${clean(turn.summary)||"Information captured for review"}`
+      message:`Call Type: Solicitation / Vendor | Representative: ${clean(turn.vendor.representative)||"Not provided"} | Company: ${clean(turn.vendor.company)||"Not provided"} | Product / Service Offered: ${clean(turn.vendor.offering)||"Not provided"} | Phone: ${clean(turn.vendor.phone)||"Not provided"} | Email: ${clean(turn.vendor.email)||"Not provided"} | Reason for Call: ${clean(turn.vendor.reason)||"Not provided"} | Outcome: ${clean(turn.summary)||"Information captured for review"} | Source: ${source}`
     };
   }
   const c = {...turn.customer};
@@ -58,6 +58,9 @@ export function buildGhlPayload(turn, ctx) {
   };
 }
 
+// Compatibility note: existing ali_* analytics identifiers are intentionally retained
+// so dashboards, webhook consumers, and historical reporting are not broken by the
+// customer-facing rename from Ali to Mia.
 export function eventNamesFor(turn, channel="voice") {
   const names = [];
   if (channel === "voice") names.push("ali_call_handled");
