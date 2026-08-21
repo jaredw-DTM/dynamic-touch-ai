@@ -32,6 +32,9 @@ assert.equal(payload.phone,"9705551111","third-party customer phone must be the 
 assert.notEqual(payload.phone,ctx.callerPhone,"must not use agent caller ID as customer phone");
 assert.equal(sourceFor(thirdPartyTurn,ctx),"Google AI / GBP");
 assert.ok(payload.tags.includes("Google AI / GBP"));
+assert.ok(payload.tags.includes("Mia - Prospective Client"));
+
+// Existing ali_* analytics IDs are intentionally preserved for production compatibility.
 assert.ok(eventNamesFor(thirdPartyTurn).includes("ali_call_third_party_customer_agent"));
 
 const vendorTurn={...thirdPartyTurn,intent:INTENTS.SOLICITATION,platformAgent:"",qualifiedLead:false,bookingAttempt:false,bookingHandoff:false,bookingOutcome:"none",
@@ -39,8 +42,15 @@ const vendorTurn={...thirdPartyTurn,intent:INTENTS.SOLICITATION,platformAgent:""
   vendor:{representative:"Alex Sales",company:"SEO Co",offering:"SEO",phone:"3035557777",email:"alex@seo.example",reason:"Sell SEO"},summary:"Vendor pitch captured."
 };
 const vp=buildGhlPayload(vendorTurn,{...ctx,representingPlatform:""});
-assert.ok(vp.tags.includes("Solicitation - Ali"));
+assert.equal(sourceFor(vendorTurn,{...ctx,representingPlatform:""}),"Mia Voice - Solicitation");
+assert.ok(vp.tags.includes("Solicitation - Mia"));
+assert.match(vp.message,/Source: Mia Voice - Solicitation/);
 assert.equal(vp.excludeFromCustomerConversion,true);
 assert.ok(eventNamesFor({...vendorTurn,resolvedWithoutHuman:true}).includes("ali_solicitation_intercepted"));
 
-console.log(`PASS ${cases.length} required intent scenarios + CRM/analytics safeguards`);
+const prospectTurn={...thirdPartyTurn,intent:INTENTS.PROSPECT,platformAgent:""};
+assert.equal(sourceFor(prospectTurn,{...ctx,representingPlatform:""}),"Mia Voice");
+assert.ok(buildGhlPayload(prospectTurn,{...ctx,representingPlatform:""}).tags.includes("Mia - Prospective Client"));
+assert.equal(sourceFor(prospectTurn,{...ctx,channel:"web",representingPlatform:""}),"Mia Website Chat");
+
+console.log(`PASS ${cases.length} required intent scenarios + Mia CRM labels + legacy analytics compatibility safeguards`);

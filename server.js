@@ -6,6 +6,7 @@ const app = express();
 
 export const BUSINESS = Object.freeze({
   name: "Dynamic Touch Corrective Therapy",
+  assistantName: "Mia",
   practitioner: "Ja'Red Wheeler",
   phone: "(970) 682-3031",
   address: "873 Cleveland Ave, Loveland, CO 80537",
@@ -25,7 +26,12 @@ app.use((req, res, next) => {
 });
 
 const SYSTEM_PROMPT = `
-You are Ali, the AI receptionist and booking assistant for Dynamic Touch Corrective Therapy in Loveland, Colorado.
+You are Mia, Dynamic Touch's virtual assistant and booking assistant for Dynamic Touch Corrective Therapy in Loveland, Colorado.
+
+SPOKEN IDENTITY
+When you introduce yourself on a voice call, use: "Hi, this is Mia, the virtual assistant for Dynamic Touch Corrective Therapy. How can I help you today?"
+Your name is Mia, pronounced "MEE-uh."
+Do not identify yourself as Ali.
 
 BUSINESS FACTS
 Business: Dynamic Touch Corrective Therapy
@@ -109,7 +115,7 @@ summary is concise operational CRM summary.
 qualifiedLead=true only for genuine customer opportunity.
 bookingAttempt=true when caller/agent actively tries to schedule.
 bookingHandoff=true when directed to Vagaro/booking handoff.
-resolvedWithoutHuman=true when Ali can appropriately finish without a human.
+resolvedWithoutHuman=true when Mia can appropriately finish without a human.
 shouldCreateOrUpdateGhl=true only for: prospective lead with usable customer contact; third-party customer opportunity with usable HUMAN customer contact; solicitation/vendor with usable vendor contact; existing-client update when appropriate.
 For third_party_customer_agent, customer fields MUST contain the human customer's info only.
 For solicitation_vendor, vendor fields contain the seller's info.
@@ -189,7 +195,8 @@ async function sendLead(payload) {
 }
 
 async function analytics(name, props={}) {
-  const event = {event:name,timestamp:new Date().toISOString(),...props};
+  const event = {event:name,assistant:"Mia",timestamp:new Date().toISOString(),...props};
+  // Legacy marker intentionally retained for log-parser compatibility.
   console.log("ALI_EVENT",JSON.stringify(event));
   if (!process.env.ANALYTICS_WEBHOOK_URL) return {sent:false,reason:"missing-analytics-webhook",event};
   try {
@@ -214,7 +221,7 @@ async function aiTurn(messages, ctx) {
   if (!r.ok) throw new Error(`OpenAI ${r.status}: ${text}`);
   const outer=JSON.parse(text);
   const turn=JSON.parse(outer?.choices?.[0]?.message?.content || "{}");
-  if (!Object.values(INTENTS).includes(turn.intent)) throw new Error("Invalid Ali structured intent");
+  if (!Object.values(INTENTS).includes(turn.intent)) throw new Error("Invalid Mia structured intent");
   if (ctx.bookingConfirmed) {
     turn.bookingOutcome="completed"; turn.bookingAttempt=true; turn.bookingHandoff=false;
   } else if (turn.bookingOutcome==="completed") {
@@ -238,13 +245,13 @@ async function processTurn(req,res,channel) {
       else ghl=await sendLead(buildGhlPayload(turn,ctx));
     }
 
-    const base={channel,callId:ctx.callId,intent:turn.intent,source:sourceFor(turn,ctx)};
+    const base={channel,callId:ctx.callId,intent:turn.intent,source:sourceFor(turn,ctx),assistant:"Mia"};
     const names=eventNamesFor(turn,channel);
     if (ghl.sent) names.push("ali_ghl_record_sent");
     const eventResults=await Promise.all([...new Set(names)].map(n=>analytics(n,base)));
 
     return res.json({
-      ok:true, reply:turn.reply, intent:turn.intent, intentConfidence:turn.intentConfidence,
+      ok:true, assistant:"Mia", reply:turn.reply, intent:turn.intent, intentConfidence:turn.intentConfidence,
       source:sourceFor(turn,ctx), platformAgent:turn.platformAgent, qualifiedLead:turn.qualifiedLead,
       bookingAttempt:turn.bookingAttempt, bookingHandoff:turn.bookingHandoff, bookingOutcome:turn.bookingOutcome,
       humanEscalation:turn.humanEscalation, resolvedWithoutHuman:turn.resolvedWithoutHuman,
@@ -254,12 +261,12 @@ async function processTurn(req,res,channel) {
     });
   } catch(e) {
     console.error(`${channel} turn error`,e);
-    return res.status(500).json({ok:false,reply:channel==="voice"?"I'm having trouble connecting right now. You can book at painisntnormal.com or call back shortly.":"AI service is temporarily unavailable. Please try again in a moment."});
+    return res.status(500).json({ok:false,assistant:"Mia",reply:channel==="voice"?"I'm having trouble connecting right now. You can book at painisntnormal.com or call back shortly.":"AI service is temporarily unavailable. Please try again in a moment."});
   }
 }
 
 app.get("/",(req,res)=>res.json({
-  ok:true,service:"Dynamic Touch AI running",assistant:"Ali",brainVersion:"voice-intent-v1",
+  ok:true,service:"Dynamic Touch AI running",assistant:"Mia",brainVersion:"voice-intent-v1",
   voiceId:BUSINESS.voiceId,voiceEndpoint:"/voice/turn",leadCapture:"enabled",
   analyticsWebhookConfigured:Boolean(process.env.ANALYTICS_WEBHOOK_URL),liveVagaroAvailability:false
 }));
@@ -270,21 +277,21 @@ app.post("/voice/turn",(req,res)=>processTurn(req,res,"voice"));
 app.post("/voice/finalize",async(req,res)=>{
   const callId=clean(req.body?.callId), bookingOutcome=clean(req.body?.bookingOutcome||"unknown");
   if (!callId) return res.status(400).json({ok:false,message:"callId is required"});
-  const base={channel:"voice",callId,intent:clean(req.body?.intent),source:clean(req.body?.source||"Ali Voice")};
+  const base={channel:"voice",callId,intent:clean(req.body?.intent),source:clean(req.body?.source||"Mia Voice"),assistant:"Mia"};
   const names=["ali_call_finalized"];
   if (bookingOutcome==="completed") names.push("ali_booking_completed");
   if (bookingOutcome==="handoff") names.push("ali_booking_handoff");
   if (req.body?.resolvedWithoutHuman===true) names.push("ali_resolved_without_human");
   if (req.body?.humanEscalation===true) names.push("ali_human_escalation");
   await Promise.all(names.map(n=>analytics(n,{...base,bookingOutcome})));
-  return res.json({ok:true,callId,bookingOutcome});
+  return res.json({ok:true,assistant:"Mia",callId,bookingOutcome});
 });
 
 app.post("/lead",async(req,res)=>{
   try {
     const lead={
-      source:clean(req.body?.source||"Ali Website Chat"),channel:clean(req.body?.channel||"web"),callId:clean(req.body?.callId),
-      callType:clean(req.body?.callType||INTENTS.PROSPECT),tags:Array.isArray(req.body?.tags)?req.body.tags:["Ali - Prospective Client"],
+      source:clean(req.body?.source||"Mia Website Chat"),channel:clean(req.body?.channel||"web"),callId:clean(req.body?.callId),
+      callType:clean(req.body?.callType||INTENTS.PROSPECT),tags:Array.isArray(req.body?.tags)?req.body.tags:["Mia - Prospective Client"],
       name:clean(req.body?.name),phone:clean(req.body?.phone),email:clean(req.body?.email),
       mainIssue:clean(req.body?.mainIssue),howLong:clean(req.body?.howLong),preferredTimes:clean(req.body?.preferredTimes),
       bookingAttempt:req.body?.bookingAttempt===true,bookingHandoff:req.body?.bookingHandoff===true,
@@ -296,11 +303,11 @@ app.post("/lead",async(req,res)=>{
     lead.message=`${lead.conversationSummary} | Source: ${lead.source}`;
     if (!lead.phone && !lead.email) return res.status(400).json({ok:false,message:"Phone or email is required."});
     const result=await sendLead(lead);
-    if (result.sent) await analytics("ali_ghl_record_sent",{channel:lead.channel,callId:lead.callId,intent:lead.callType,source:lead.source});
-    return res.json({ok:true,message:"Lead received",webhookSent:result.sent,webhookReason:result.reason||""});
+    if (result.sent) await analytics("ali_ghl_record_sent",{channel:lead.channel,callId:lead.callId,intent:lead.callType,source:lead.source,assistant:"Mia"});
+    return res.json({ok:true,assistant:"Mia",message:"Lead received",webhookSent:result.sent,webhookReason:result.reason||""});
   } catch(e) {
     console.error("Lead error",e);
-    return res.status(500).json({ok:false,message:"Lead capture failed"});
+    return res.status(500).json({ok:false,assistant:"Mia",message:"Lead capture failed"});
   }
 });
 
