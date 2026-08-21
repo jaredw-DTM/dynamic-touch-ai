@@ -1,747 +1,309 @@
 import express from "express";
 import cors from "cors";
+import { INTENTS, sourceFor, buildGhlPayload, eventNamesFor } from "./intent-core.js";
 
 const app = express();
 
-/* =========================================================
-   MIDDLEWARE
-========================================================= */
+export const BUSINESS = Object.freeze({
+  name: "Dynamic Touch Corrective Therapy",
+  practitioner: "Ja'Red Wheeler",
+  phone: "(970) 682-3031",
+  address: "873 Cleveland Ave, Loveland, CO 80537",
+  website: "https://www.painisntnormal.com",
+  bookingUrl: "https://www.vagaro.com/dtmzh6",
+  commerceUrl: "https://www.vagaro.com/dtmzh6/memberships",
+  voiceId: "56bWURjYFHyYyVf490Dp"
+});
 
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
+app.use(cors({ origin: "*", methods: ["GET", "POST", "OPTIONS"], allowedHeaders: ["Content-Type", "Authorization"] }));
 app.options("*", cors());
-
 app.use(express.json({ limit: "1mb" }));
-
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   next();
 });
 
-/* =========================================================
-   ALI SYSTEM PROMPT
-========================================================= */
-
 const SYSTEM_PROMPT = `
-You are Ali, the virtual assistant for Dynamic Touch Corrective Therapy in Loveland, Colorado.
+You are Ali, the AI receptionist and booking assistant for Dynamic Touch Corrective Therapy in Loveland, Colorado.
 
-PRIMARY GOAL
-Help website visitors understand Muscular Realignment, answer questions clearly, recommend an appropriate starting session, collect lead information when appropriate, and guide visitors toward booking.
-
-PERSONALITY
-Warm, professional, knowledgeable, helpful, friendly, confident, concise, and never pushy. Use plain English and short responses.
-
-BUSINESS INFORMATION
+BUSINESS FACTS
 Business: Dynamic Touch Corrective Therapy
-Website: https://www.painisntnormal.com
+Public descriptor: Muscular Realignment Experts
+Practitioner: Ja'Red Wheeler
 Phone: (970) 682-3031
 Address: 873 Cleveland Ave, Loveland, CO 80537
-Practitioner: Ja'Red Wheeler
+Website: https://www.painisntnormal.com
+Booking: https://www.vagaro.com/dtmzh6
+Packages/memberships: https://www.vagaro.com/dtmzh6/memberships
 
-Dynamic Touch specializes in Muscular Realignment. Do not position Dynamic Touch as a traditional massage or spa business.
+POSITIONING
+Muscular Realignment is Dynamic Touch's flagship, goal-focused bodywork approach for recurring muscular tension, restricted movement, and pain patterns that keep returning. It is not relaxation-first massage.
+Process: Talk → Observe → Work → Recheck → Next Steps.
+Orthomyologic Manipulation is a secondary specialized hands-on offering. Do not invent details.
 
-WHAT IS MUSCULAR REALIGNMENT?
-Muscular Realignment is Dynamic Touch's assessment-led, goal-focused form of corrective bodywork for recurring muscular tension, restricted movement, and pain patterns that keep returning.
-
-A session may include:
-- discussion of the client's goal and history
-- movement observation
-- targeted hands-on bodywork
-- rechecking the original movement or concern
-- guidance about what to notice afterward
-
-Muscular Realignment does not diagnose medical conditions or guarantee outcomes.
-
-HOW IT DIFFERS FROM RELAXATION MASSAGE
-Traditional relaxation massage generally prioritizes relaxation and broad tension relief.
-
-Muscular Realignment is organized around a specific concern, movement, or functional goal.
-
-Clients may feel relaxed afterward, but relaxation is a benefit, not the primary focus.
-
-COMMON REASONS PEOPLE CONTACT DYNAMIC TOUCH
-People commonly ask about:
-- neck and shoulder tension
-- frozen shoulder support
-- back pain
-- hip and glute tension
-- sciatica-like symptoms
-- TMJ and jaw tension
-- tension-type headaches
-- carpal tunnel symptoms
-- plantar fasciitis
-- fibromyalgia
-- scoliosis
-- posture-related tension
-- athletic or mobility restrictions
-- chronic muscular tension
-
-Never claim Dynamic Touch cures or diagnoses these conditions.
-
-DISCOVERY QUESTIONS
-Ask naturally when useful:
-- What is bothering you most right now?
-- How long has it been going on?
-- Is it affecting work, sleep, exercise, or daily activities?
-- Is it one area or several?
-- What have you already tried?
-
-SESSION PRICING
-30 minutes: $60
-45 minutes: $80
-60 minutes: $110
-75 minutes: $130
-90 minutes: $150
-2 hours: $180
-2.5 hours: $230
-3 hours: $300
-4 hours: $425
-
-STARTING RECOMMENDATION
-For a newer or more isolated concern, 60 minutes is usually a reasonable starting point.
-
-If the concern has been present for 6 months or longer, affects several areas, or appears to involve broader compensation patterns, recommend considering a 90-minute session.
-
-Do not imply that a longer session guarantees a better result.
+PRICING
+30m $60; 45m $80; 60m $110; 75m $130; 90m $150; 2h $180; 2.5h $230; 3h $300; 4h $425.
+Starting logic: newer/isolated concern → usually 60m. Concern 6+ months, several areas, or broader pattern → consider 90m. Never guarantee results.
 
 PACKAGES
-Dynamic Touch offers three shareable Muscular Realignment packages.
+Reset 3 $300: 3x60m. Realign 6 $720: 6x75m, most popular. Total Reset 6 $825: 6x90m. Each may be shared with up to 3 family members/friends.
 
-Reset 3 — $300
-3 x 60-minute sessions
+1LIFE1BODY
+Reset $97/mo 1x60m. Corrective $149/mo 1x90m, most popular. Performance $229/mo 2x75m. Elite $349/mo 3x75m or 2x120m. Prenatal Support $169/mo 1 monthly prenatal Muscular Realignment. Do not invent policy terms.
 
-Realign 6 — $720
-6 x 75-minute sessions
-This is the most popular package.
+INTENT RULE — CLASSIFY BY PURPOSE, NOT IDENTITY
+Determine whom the call ultimately serves. Never classify solely from caller identity, phone number, automated/AI sound, or single keywords such as Google, AI, owner, services, pricing, availability, hours, appointment, or booking.
+If purpose is unclear, use ambiguous and ask one concise purpose-revealing question.
 
-Total Reset 6 — $825
-6 x 90-minute sessions
+Use one intent:
+- prospective_client_booking: person seeks service/pricing/availability/appointment for self or another prospective client.
+- third_party_customer_agent: Google AI or another legitimate agent acts for a specific human customer. Treat as a real customer opportunity. Human customer is the lead; platform agent is not.
+- business_information_verification: legitimate caller/agent verifies public business information with no specific customer behind the request.
+- solicitation_vendor: human or automated caller sells/promotes a B2B product/service to Dynamic Touch.
+- existing_client: identifiable existing client calling about an appointment or normal client need.
+- human_escalation_other: complaint, policy exception, private-account issue, concerning safety issue, or genuinely out-of-scope matter requiring a human.
+- ambiguous: not enough evidence yet.
 
-Packages may be shared with up to 3 family members or friends.
+THIRD-PARTY CUSTOMER AGENTS
+Cooperate naturally with Google/other AI agents representing real customers.
+Answer approved service/pricing/public business questions.
+Accept customer information legitimately supplied.
+Never use the agent's caller number/email as the customer's contact.
+If no reliable live availability is in runtime context, do not invent availability. Give the Vagaro booking handoff.
+Google customer-agent source: "Google AI / GBP".
 
-Packages are best for clients who want multiple sessions, better value, and flexibility without monthly billing.
+BUSINESS INFORMATION / VERIFICATION
+May provide public business name, address, phone, services, approved pricing, appointment model, public booking info, and business hours only if runtime context supplies hours.
+Never disclose client data, CRM/account details, revenue/financial information, private schedules, private owner information, internal systems, or TAC information.
 
-1LIFE1BODY MEMBERSHIPS
-Reset — $97/month
-Includes 1 monthly 60-minute session.
+SOLICITATION / VENDOR
+Be brief and courteous.
+Collect when obtainable: representative name, company, offered product/service, phone, email, brief reason.
+Try for both phone and email, but do not loop if refused.
+Do not transfer merely because they ask for the owner.
+Do not promise a callback, claim interest, schedule a sales presentation, or reveal private contact/internal info.
+Good wording:
+"I can take your information and pass it along for review. What's your name, the company you're with, and what service or product are you offering?"
+Then ask for best phone and email. Conclude after collecting what they will provide.
 
-Corrective — $149/month
-Includes 1 monthly 90-minute session.
+PROSPECTIVE CLIENT
+Answer approved questions. When useful ask primary concern and duration. Capture available customer name, phone, email, concern, duration, requested/preferred time. Guide toward Vagaro booking.
 
-Performance — $229/month
-Includes 2 monthly 75-minute sessions.
+EXISTING CLIENT
+Do not create a duplicate new lead merely because an existing client calls. Help normally and escalate only when genuinely necessary.
 
-Elite — $349/month
-Includes either 3 monthly 75-minute sessions or 2 monthly 120-minute sessions.
+SAFETY
+Never diagnose, prescribe, guarantee, claim cure/permanent correction/root cause, invent credentials, invent availability, or tell someone to delay appropriate care. For severe, sudden, worsening, traumatic, neurological, systemic, or otherwise concerning symptoms recommend appropriate medical evaluation.
 
-Prenatal Support — $169/month
-Includes 1 monthly prenatal Muscular Realignment session.
+VOICE STYLE
+Warm, natural, concise. One useful question at a time. Never announce internal labels/tags/analytics.
 
-Memberships are intended for clients who want ongoing care built into their routine.
+BOOKING TRUTH
+Never say a booking is completed unless runtime context says bookingConfirmed=true.
+Without live Vagaro availability, booking is a handoff, not a completed booking.
 
-ORTHOMYOLOGIC MANIPULATION
-Dynamic Touch also offers Orthomyologic Manipulation as a specialized service.
-
-Muscular Realignment remains the primary Dynamic Touch system and brand focus.
-
-If someone specifically asks about Orthomyologic Manipulation, explain that it is a specialized hands-on service offered by Ja'Red. Do not invent details beyond the information available.
-
-PRICE SHOPPERS
-Do not compete only on price.
-
-Explain the value of:
-- goal-focused sessions
-- individualized work
-- movement observation
-- targeted bodywork
-- rechecking what changed
-- a clearer next step
-
-Then explain the available session, package, or membership options.
-
-HOW MANY SESSIONS?
-If asked how many sessions they will need, say:
-
-"The number of sessions depends on how your body responds and what you are dealing with. Ja'Red can give you better guidance after seeing how you respond to your first session."
-
-FIBROMYALGIA
-Fibromyalgia does not automatically require a consultation first. Dynamic Touch works with clients who have fibromyalgia when bodywork is appropriate.
-
-PREGNANCY
-Pregnancy is not automatically a reason to decline or escalate because Dynamic Touch offers prenatal services. Appropriate modifications and safety considerations still apply.
-
-MEDICAL AND SAFETY LIMITS
-Never:
-- diagnose
-- prescribe
-- guarantee pain relief
-- claim to cure
-- promise permanent correction
-- claim to identify the root cause of a medical condition
-- tell someone to delay appropriate medical care
-
-If symptoms are severe, sudden, rapidly worsening, neurological, traumatic, or otherwise concerning, recommend appropriate medical evaluation.
-
-LEAD CAPTURE
-When someone wants to book, wants follow-up, or appears seriously interested, collect:
-- name
-- phone number
-- email
-- main concern
-- how long it has been happening
-- preferred appointment or follow-up time
-
-If contact information has already been provided earlier in the conversation, do not ask for it again.
-
-BOOKING
-The website uses Vagaro for booking.
-
-When a visitor is ready to book, encourage them to use the website's Book button or booking experience.
-
-Do not invent appointment availability.
-
-Do not claim you can see Vagaro's live appointment availability unless the application actually provides that information to you.
-
-If helpful, direct them to:
-https://www.painisntnormal.com
-
-ESCALATION
-Escalate to Ja'Red when:
-- the visitor asks for medical advice
-- the visitor has concerning or unclear symptoms
-- the visitor requests a policy exception
-- the visitor is upset or making a complaint
-- the visitor specifically asks to speak with Ja'Red
-- the question is outside your knowledge
-- the request involves something you cannot confidently answer
-
-STYLE
-Keep replies concise and conversational.
-
-Do not write long essays.
-
-Ask only useful follow-up questions.
-
-Do not pressure people into booking.
-
-Your job is to help people understand their options and choose an appropriate next step.
+OUTPUT
+Return only JSON matching the schema.
+summary is concise operational CRM summary.
+qualifiedLead=true only for genuine customer opportunity.
+bookingAttempt=true when caller/agent actively tries to schedule.
+bookingHandoff=true when directed to Vagaro/booking handoff.
+resolvedWithoutHuman=true when Ali can appropriately finish without a human.
+shouldCreateOrUpdateGhl=true only for: prospective lead with usable customer contact; third-party customer opportunity with usable HUMAN customer contact; solicitation/vendor with usable vendor contact; existing-client update when appropriate.
+For third_party_customer_agent, customer fields MUST contain the human customer's info only.
+For solicitation_vendor, vendor fields contain the seller's info.
 `;
 
-/* =========================================================
-   LEAD HELPERS
-========================================================= */
+const SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    reply: { type: "string" },
+    intent: { type: "string", enum: Object.values(INTENTS) },
+    intentConfidence: { type: "number", minimum: 0, maximum: 1 },
+    platformAgent: { type: "string" },
+    qualifiedLead: { type: "boolean" },
+    bookingAttempt: { type: "boolean" },
+    bookingHandoff: { type: "boolean" },
+    bookingOutcome: { type: "string", enum: ["none", "requested", "handoff", "completed", "unknown"] },
+    humanEscalation: { type: "boolean" },
+    resolvedWithoutHuman: { type: "boolean" },
+    shouldCreateOrUpdateGhl: { type: "boolean" },
+    customer: {
+      type: "object", additionalProperties: false,
+      properties: {
+        name: { type: "string" }, phone: { type: "string" }, email: { type: "string" },
+        concern: { type: "string" }, howLong: { type: "string" },
+        requestedDateTime: { type: "string" }, alternativeDateTime: { type: "string" }
+      },
+      required: ["name","phone","email","concern","howLong","requestedDateTime","alternativeDateTime"]
+    },
+    vendor: {
+      type: "object", additionalProperties: false,
+      properties: {
+        representative: { type: "string" }, company: { type: "string" }, offering: { type: "string" },
+        phone: { type: "string" }, email: { type: "string" }, reason: { type: "string" }
+      },
+      required: ["representative","company","offering","phone","email","reason"]
+    },
+    summary: { type: "string" }
+  },
+  required: ["reply","intent","intentConfidence","platformAgent","qualifiedLead","bookingAttempt","bookingHandoff","bookingOutcome","humanEscalation","resolvedWithoutHuman","shouldCreateOrUpdateGhl","customer","vendor","summary"]
+};
 
-/*
-  Stores the most recent payload signature submitted for each
-  contact during this server process.
+const submitted = new Map();
 
-  This prevents identical duplicate webhook submissions while
-  still allowing an enriched lead to be sent later when Ali
-  learns the person's concern, duration, or preferred time.
-*/
-const submittedLeadSignatures = new Map();
-
-function normalizePhone(phone = "") {
-  return String(phone).replace(/[^0-9]/g, "");
+function clean(v="") { return String(v ?? "").replace(/^[\s:,-]+|[\s,.;]+$/g,"").replace(/\s+/g," ").trim(); }
+function phoneKey(v="") { return String(v).replace(/\D/g,""); }
+function usableContact(o={}) { return Boolean(clean(o.phone) || clean(o.email)); }
+function messagesOf(v=[]) {
+  return (Array.isArray(v) ? v : []).filter(m => m && ["user","assistant"].includes(m.role) && typeof m.content === "string" && m.content.trim()).slice(-60).map(m => ({role:m.role, content:m.content.trim()}));
 }
-
-function cleanValue(value = "") {
-  return String(value)
-    .replace(/^[\s:,-]+|[\s,.;]+$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function getLeadKey(lead) {
-  const phone = normalizePhone(lead.phone || "");
-  const email = String(lead.email || "").trim().toLowerCase();
-
-  if (phone) return `phone:${phone}`;
-  if (email) return `email:${email}`;
-
-  return "";
-}
-
-function getLeadSignature(lead) {
-  return JSON.stringify({
-    name: cleanValue(lead.name || "").toLowerCase(),
-    phone: normalizePhone(lead.phone || ""),
-    email: String(lead.email || "").trim().toLowerCase(),
-    mainIssue: cleanValue(lead.mainIssue || "").toLowerCase(),
-    howLong: cleanValue(lead.howLong || "").toLowerCase(),
-    preferredTimes: cleanValue(lead.preferredTimes || "").toLowerCase(),
-  });
-}
-
-function allUserText(messages = []) {
-  return messages
-    .filter(
-      (message) =>
-        message &&
-        message.role === "user" &&
-        typeof message.content === "string"
-    )
-    .map((message) => message.content)
-    .join("\n");
-}
-
-function findLastMatch(text, regex) {
-  if (!text) return "";
-
-  let match;
-  let last = "";
-
-  const flags = regex.flags.includes("g")
-    ? regex.flags
-    : `${regex.flags}g`;
-
-  const globalRegex = new RegExp(regex.source, flags);
-
-  while ((match = globalRegex.exec(text)) !== null) {
-    last = match[1] || match[0] || "";
-
-    // Safety guard for zero-length regex matches.
-    if (match.index === globalRegex.lastIndex) {
-      globalRegex.lastIndex++;
-    }
-  }
-
-  return cleanValue(last);
-}
-
-/* =========================================================
-   NAME EXTRACTION
-========================================================= */
-
-function extractName(text = "") {
-  const patterns = [
-    /(?:my name is|name is|this is)\s+([a-zA-Z][a-zA-Z' -]{1,50}?)(?=\s*(?:\.|,|\n|$|my phone|phone|my email|email|and my|number))/i,
-
-    /(?:^|\n)\s*name\s*[:=-]\s*([a-zA-Z][a-zA-Z' -]{1,50})(?=\s*(?:\.|,|\n|$))/i,
-
-    /(?:i am|i'm)\s+([a-zA-Z][a-zA-Z' -]{1,50}?)(?=\s*(?:\.|,|\n|$|and my|my phone|my email))/i,
-  ];
-
-  for (const pattern of patterns) {
-    const value = findLastMatch(text, pattern);
-    if (value) return value;
-  }
-
-  return "";
-}
-
-/* =========================================================
-   MAIN ISSUE EXTRACTION
-========================================================= */
-
-function extractMainIssue(text = "") {
-  const patterns = [
-    // "My low back has been bothering me..."
-    // "My right shoulder has been hurting..."
-    /(?:my\s+)([a-zA-Z][a-zA-Z' -]{1,60}?)\s+(?:has|have)\s+been\s+(?:bothering|hurting|aching)/i,
-
-    // "My right shoulder hurts..."
-    // "My neck hurts..."
-    /(?:my\s+)([a-zA-Z][a-zA-Z' -]{1,60}?)\s+(?:hurts|aches|is painful)/i,
-
-    // "I've had shoulder pain for..."
-    /(?:i(?:'ve| have)\s+had\s+)([a-zA-Z][a-zA-Z' -]{1,60}?)(?=\s+(?:for|since)\b|[.,\n]|$)/i,
-
-    // "I have neck pain..."
-    /(?:i\s+have\s+)([a-zA-Z][a-zA-Z' -]{1,60}?(?:pain|tension|tightness|discomfort|soreness))(?=\s+(?:for|since|and|but)\b|[.,\n]|$)/i,
-
-    // "Pain in my shoulder..."
-    /(?:pain|tension|tightness|discomfort|soreness)\s+(?:in|around)\s+(?:my\s+)?([a-zA-Z][a-zA-Z' -]{1,60}?)(?=\s+(?:for|since|and|but)\b|[.,\n]|$)/i,
-
-    // Explicit field-like statements.
-    /(?:main issue is|issue is|problem is|main concern is|concern is|dealing with|help with)\s+([^\n.]{2,90}?)(?=\s+(?:for|since|and|but)\b|[.,\n]|$)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const value = findLastMatch(text, pattern);
-    if (value) return value;
-  }
-
-  return "";
-}
-
-/* =========================================================
-   DURATION EXTRACTION
-========================================================= */
-
-function extractHowLong(text = "") {
-  const patterns = [
-    // "for 9 months", "for about 3 weeks", "for over a year"
-    /\bfor\s+((?:(?:about|around|approximately|roughly|almost|nearly|over|more than|less than)\s+)?(?:\d+(?:\.\d+)?|a|an|one|two|three|four|five|six|seven|eight|nine|ten|several|few)\s+(?:days?|weeks?|months?|years?))/i,
-
-    // "since January", "since last summer"
-    /\bsince\s+([a-zA-Z0-9][^.,\n]{1,40}?)(?=\s+(?:and|but)\b|[.,\n]|$)/i,
-
-    // Explicit answers such as "How long: 8 months"
-    /(?:how long|duration)\s*[:=-]\s*([^\n.]{1,50}?)(?=[.,\n]|$)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const value = findLastMatch(text, pattern);
-    if (value) return value;
-  }
-
-  return "";
-}
-
-/* =========================================================
-   PREFERRED TIME EXTRACTION
-========================================================= */
-
-function extractPreferredTimes(text = "") {
-  const patterns = [
-    // "Afternoons work best."
-    // "Evenings work best for me."
-    /\b(mornings?|afternoons?|evenings?|weekends?|weekdays?)\s+(?:work|works)\s+best\b/i,
-
-    // "I prefer evenings."
-    // "I prefer Tuesday afternoon."
-    /(?:i\s+)?prefer(?:red)?\s+([^\n.]{2,80}?)(?=\s+(?:for|and|but)\b|[.,\n]|$)/i,
-
-    // "My preferred time is mornings."
-    /(?:preferred time|preferred appointment time|best time)\s*(?:is|would be|:|-)?\s*([^\n.]{2,80}?)(?=[.,\n]|$)/i,
-
-    // "I'm available after 5."
-    /(?:i am|i'm)\s+available\s+([^\n.]{2,80}?)(?=[.,\n]|$)/i,
-
-    // "Availability: weekday evenings"
-    /(?:availability|appointment|appt)\s*[:=-]\s*([^\n.]{2,80}?)(?=[.,\n]|$)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const value = findLastMatch(text, pattern);
-    if (value) return value;
-  }
-
-  return "";
-}
-
-/* =========================================================
-   LEAD EXTRACTION
-========================================================= */
-
-function extractLeadFromMessages(messages = []) {
-  const text = allUserText(messages);
-
-  const email = findLastMatch(
-    text,
-    /([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i
-  );
-
-  const phone = findLastMatch(
-    text,
-    /((?:\+1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4})/
-  );
-
-  const name = extractName(text);
-  const mainIssue = extractMainIssue(text);
-  const howLong = extractHowLong(text);
-  const preferredTimes = extractPreferredTimes(text);
-
-  const conversationSummary =
-    "Main issue: " +
-    (mainIssue || "Not provided") +
-    " | How long: " +
-    (howLong || "Not provided") +
-    " | Preferred times: " +
-    (preferredTimes || "Not provided");
-
+function contextOf(body={}, channel="web") {
   return {
-    hasLead: Boolean(phone || email),
-    name,
-    phone,
-    email,
-    mainIssue,
-    howLong,
-    preferredTimes,
-    message: conversationSummary + " | Source: Ali Website Chat",
-    conversationSummary,
+    channel,
+    callId: clean(body.callId || body.conversationId),
+    callerPhone: clean(body.callerPhone),
+    existingClient: typeof body.existingClient === "boolean" ? body.existingClient : null,
+    publicBusinessHours: clean(body.publicBusinessHours),
+    liveAvailability: body.liveAvailability && typeof body.liveAvailability === "object" ? body.liveAvailability : null,
+    bookingConfirmed: body.bookingConfirmed === true,
+    representingPlatform: clean(body.representingPlatform)
   };
 }
 
-/* =========================================================
-   GHL WEBHOOK
-========================================================= */
-
-async function sendLeadToGHL(lead) {
-  const key = getLeadKey(lead);
-
-  if (!key) {
-    console.log("Lead skipped: missing phone/email");
-    return {
-      sent: false,
-      reason: "missing-contact",
-    };
-  }
-
-  const signature = getLeadSignature(lead);
-  const previousSignature = submittedLeadSignatures.get(key);
-
-  if (previousSignature === signature) {
-    console.log("Lead skipped: identical duplicate", key);
-    return {
-      sent: false,
-      reason: "duplicate",
-    };
-  }
-
-  console.log("NEW LEAD:", JSON.stringify(lead));
-
-  if (!process.env.LEAD_WEBHOOK_URL) {
-    console.log("No LEAD_WEBHOOK_URL set. Lead logged only.");
-    return {
-      sent: false,
-      reason: "missing-webhook-url",
-    };
-  }
-
+async function sendLead(payload) {
+  const key = phoneKey(payload.phone) ? `phone:${phoneKey(payload.phone)}` : clean(payload.email) ? `email:${clean(payload.email).toLowerCase()}` : "";
+  if (!key) return {sent:false, reason:"missing-contact"};
+  const signature = JSON.stringify(payload);
+  if (submitted.get(key) === signature) return {sent:false, reason:"duplicate"};
+  if (!process.env.LEAD_WEBHOOK_URL) return {sent:false, reason:"missing-webhook-url"};
   try {
-    const webhookResponse = await fetch(process.env.LEAD_WEBHOOK_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(lead),
-    });
+    const r = await fetch(process.env.LEAD_WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    const t = await r.text();
+    if (!r.ok) { console.error("GHL webhook failed",r.status,t); return {sent:false,reason:"webhook-error",status:r.status}; }
+    submitted.set(key,signature);
+    return {sent:true,status:r.status};
+  } catch(e) { console.error("GHL webhook error",e); return {sent:false,reason:"webhook-exception"}; }
+}
 
-    const webhookText = await webhookResponse.text();
+async function analytics(name, props={}) {
+  const event = {event:name,timestamp:new Date().toISOString(),...props};
+  console.log("ALI_EVENT",JSON.stringify(event));
+  if (!process.env.ANALYTICS_WEBHOOK_URL) return {sent:false,reason:"missing-analytics-webhook",event};
+  try {
+    const r=await fetch(process.env.ANALYTICS_WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(event)});
+    return r.ok ? {sent:true,status:r.status,event} : {sent:false,reason:"analytics-webhook-error",status:r.status,event};
+  } catch { return {sent:false,reason:"analytics-webhook-exception",event}; }
+}
 
-    console.log(
-      "GHL webhook response:",
-      webhookResponse.status,
-      webhookText
-    );
+async function aiTurn(messages, ctx) {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
+  const r=await fetch("https://api.openai.com/v1/chat/completions",{
+    method:"POST",
+    headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:process.env.OPENAI_MODEL || "gpt-4.1-mini",
+      temperature:0.35,
+      messages:[{role:"system",content:SYSTEM_PROMPT},{role:"system",content:`RUNTIME CONTEXT (facts only): ${JSON.stringify(ctx)}`},...messages],
+      response_format:{type:"json_schema",json_schema:{name:"ali_turn",strict:true,schema:SCHEMA}}
+    })
+  });
+  const text=await r.text();
+  if (!r.ok) throw new Error(`OpenAI ${r.status}: ${text}`);
+  const outer=JSON.parse(text);
+  const turn=JSON.parse(outer?.choices?.[0]?.message?.content || "{}");
+  if (!Object.values(INTENTS).includes(turn.intent)) throw new Error("Invalid Ali structured intent");
+  if (ctx.bookingConfirmed) {
+    turn.bookingOutcome="completed"; turn.bookingAttempt=true; turn.bookingHandoff=false;
+  } else if (turn.bookingOutcome==="completed") {
+    turn.bookingOutcome=turn.bookingHandoff ? "handoff" : "unknown";
+  }
+  return turn;
+}
 
-    if (!webhookResponse.ok) {
-      console.error(
-        "GHL webhook failed:",
-        webhookResponse.status,
-        webhookText
-      );
+async function processTurn(req,res,channel) {
+  try {
+    const messages=messagesOf(req.body?.messages);
+    if (!messages.length) return res.status(400).json({ok:false,reply:"Please send a message so I can help."});
+    const ctx=contextOf(req.body || {},channel);
+    const turn=await aiTurn(messages,ctx);
 
-      return {
-        sent: false,
-        reason: "webhook-error",
-        status: webhookResponse.status,
-      };
+    let ghl={sent:false,reason:"not-applicable"};
+    if (turn.shouldCreateOrUpdateGhl) {
+      if (turn.intent===INTENTS.THIRD_PARTY && !usableContact(turn.customer)) ghl={sent:false,reason:"missing-human-customer-contact"};
+      else if (turn.intent===INTENTS.SOLICITATION && !usableContact(turn.vendor)) ghl={sent:false,reason:"missing-vendor-contact"};
+      else if ([INTENTS.INFO,INTENTS.AMBIGUOUS].includes(turn.intent)) ghl={sent:false,reason:"not-a-lead-record"};
+      else ghl=await sendLead(buildGhlPayload(turn,ctx));
     }
 
-    // Only mark this exact payload as submitted after GHL accepts it.
-    submittedLeadSignatures.set(key, signature);
+    const base={channel,callId:ctx.callId,intent:turn.intent,source:sourceFor(turn,ctx)};
+    const names=eventNamesFor(turn,channel);
+    if (ghl.sent) names.push("ali_ghl_record_sent");
+    const eventResults=await Promise.all([...new Set(names)].map(n=>analytics(n,base)));
 
-    return {
-      sent: true,
-      status: webhookResponse.status,
-    };
-  } catch (error) {
-    console.error("GHL webhook request error:", error);
-
-    return {
-      sent: false,
-      reason: "webhook-exception",
-    };
+    return res.json({
+      ok:true, reply:turn.reply, intent:turn.intent, intentConfidence:turn.intentConfidence,
+      source:sourceFor(turn,ctx), platformAgent:turn.platformAgent, qualifiedLead:turn.qualifiedLead,
+      bookingAttempt:turn.bookingAttempt, bookingHandoff:turn.bookingHandoff, bookingOutcome:turn.bookingOutcome,
+      humanEscalation:turn.humanEscalation, resolvedWithoutHuman:turn.resolvedWithoutHuman,
+      bookingUrl:BUSINESS.bookingUrl, voiceId:channel==="voice"?BUSINESS.voiceId:undefined,
+      ghl:{sent:ghl.sent,reason:ghl.reason||""},
+      analytics:eventResults.map(x=>({event:x.event?.event||"",sent:x.sent,reason:x.reason||""}))
+    });
+  } catch(e) {
+    console.error(`${channel} turn error`,e);
+    return res.status(500).json({ok:false,reply:channel==="voice"?"I'm having trouble connecting right now. You can book at painisntnormal.com or call back shortly.":"AI service is temporarily unavailable. Please try again in a moment."});
   }
 }
 
-/* =========================================================
-   HEALTH CHECK
-========================================================= */
+app.get("/",(req,res)=>res.json({
+  ok:true,service:"Dynamic Touch AI running",assistant:"Ali",brainVersion:"voice-intent-v1",
+  voiceId:BUSINESS.voiceId,voiceEndpoint:"/voice/turn",leadCapture:"enabled",
+  analyticsWebhookConfigured:Boolean(process.env.ANALYTICS_WEBHOOK_URL),liveVagaroAvailability:false
+}));
 
-app.get("/", (req, res) => {
-  res.json({
-    ok: true,
-    service: "Dynamic Touch AI running",
-    assistant: "Ali",
-    leadCapture: "enabled",
-    leadExtraction: "conversation-aware",
-  });
+app.post("/chat",(req,res)=>processTurn(req,res,"web"));
+app.post("/voice/turn",(req,res)=>processTurn(req,res,"voice"));
+
+app.post("/voice/finalize",async(req,res)=>{
+  const callId=clean(req.body?.callId), bookingOutcome=clean(req.body?.bookingOutcome||"unknown");
+  if (!callId) return res.status(400).json({ok:false,message:"callId is required"});
+  const base={channel:"voice",callId,intent:clean(req.body?.intent),source:clean(req.body?.source||"Ali Voice")};
+  const names=["ali_call_finalized"];
+  if (bookingOutcome==="completed") names.push("ali_booking_completed");
+  if (bookingOutcome==="handoff") names.push("ali_booking_handoff");
+  if (req.body?.resolvedWithoutHuman===true) names.push("ali_resolved_without_human");
+  if (req.body?.humanEscalation===true) names.push("ali_human_escalation");
+  await Promise.all(names.map(n=>analytics(n,{...base,bookingOutcome})));
+  return res.json({ok:true,callId,bookingOutcome});
 });
 
-/* =========================================================
-   CHAT ENDPOINT
-========================================================= */
-
-app.post("/chat", async (req, res) => {
+app.post("/lead",async(req,res)=>{
   try {
-    const messages = Array.isArray(req.body?.messages)
-      ? req.body.messages
-      : [];
-
-    if (!process.env.OPENAI_API_KEY) {
-      console.error("OPENAI_API_KEY is not configured.");
-
-      return res.status(500).json({
-        reply: "AI service is temporarily unavailable. Please try again in a moment.",
-      });
-    }
-
-    if (messages.length === 0) {
-      return res.status(400).json({
-        reply: "Please send a message so I can help.",
-      });
-    }
-
-    const openaiResponse = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4.1-mini",
-          messages: [
-            {
-              role: "system",
-              content: SYSTEM_PROMPT,
-            },
-            ...messages,
-          ],
-          temperature: 0.6,
-        }),
-      }
-    );
-
-    const responseText = await openaiResponse.text();
-
-    if (!openaiResponse.ok) {
-      console.error(
-        "OpenAI error:",
-        openaiResponse.status,
-        responseText
-      );
-
-      return res.status(500).json({
-        reply: "AI service error - try again in a moment.",
-      });
-    }
-
-    let data;
-
-    try {
-      data = JSON.parse(responseText);
-    } catch (error) {
-      console.error("Unable to parse OpenAI response:", error);
-
-      return res.status(500).json({
-        reply: "AI response error - please try again.",
-      });
-    }
-
-    const reply = data?.choices?.[0]?.message?.content;
-
-    if (!reply) {
-      console.error("OpenAI response missing reply:", data);
-
-      return res.status(500).json({
-        reply: "AI response missing - please try again.",
-      });
-    }
-
-    /*
-      Lead extraction uses the full user-side conversation.
-
-      If Ali first receives contact information and later learns
-      more about the person's concern, the enriched lead can be
-      submitted again because its signature has changed.
-    */
-    const lead = extractLeadFromMessages(messages);
-
-    if (lead.hasLead) {
-      await sendLeadToGHL(lead);
-    }
-
-    return res.json({
-      reply,
-    });
-  } catch (error) {
-    console.error("Server error:", error);
-
-    return res.status(500).json({
-      reply: "Server hiccup - try again in a moment.",
-    });
-  }
-});
-
-/* =========================================================
-   DIRECT LEAD ENDPOINT
-========================================================= */
-
-app.post("/lead", async (req, res) => {
-  try {
-    const name = cleanValue(req.body?.name || "");
-    const phone = cleanValue(req.body?.phone || "");
-    const email = cleanValue(req.body?.email || "");
-    const mainIssue = cleanValue(req.body?.mainIssue || "");
-    const howLong = cleanValue(req.body?.howLong || "");
-    const preferredTimes = cleanValue(
-      req.body?.preferredTimes || ""
-    );
-
-    if (!phone && !email) {
-      return res.status(400).json({
-        ok: false,
-        message: "Phone or email is required.",
-      });
-    }
-
-    const conversationSummary =
-      "Main issue: " +
-      (mainIssue || "Not provided") +
-      " | How long: " +
-      (howLong || "Not provided") +
-      " | Preferred times: " +
-      (preferredTimes || "Not provided");
-
-    const lead = {
-      hasLead: true,
-      name,
-      phone,
-      email,
-      mainIssue,
-      howLong,
-      preferredTimes,
-      message:
-        conversationSummary + " | Source: Ali Website Chat",
-      conversationSummary,
+    const lead={
+      source:clean(req.body?.source||"Ali Website Chat"),channel:clean(req.body?.channel||"web"),callId:clean(req.body?.callId),
+      callType:clean(req.body?.callType||INTENTS.PROSPECT),tags:Array.isArray(req.body?.tags)?req.body.tags:["Ali - Prospective Client"],
+      name:clean(req.body?.name),phone:clean(req.body?.phone),email:clean(req.body?.email),
+      mainIssue:clean(req.body?.mainIssue),howLong:clean(req.body?.howLong),preferredTimes:clean(req.body?.preferredTimes),
+      bookingAttempt:req.body?.bookingAttempt===true,bookingHandoff:req.body?.bookingHandoff===true,
+      bookingOutcome:clean(req.body?.bookingOutcome||"none"),qualifiedLead:req.body?.qualifiedLead!==false,
+      humanEscalation:req.body?.humanEscalation===true,resolvedWithoutHuman:req.body?.resolvedWithoutHuman===true,
+      conversationSummary:clean(req.body?.conversationSummary||`Main issue: ${clean(req.body?.mainIssue)||"Not provided"} | How long: ${clean(req.body?.howLong)||"Not provided"} | Preferred times: ${clean(req.body?.preferredTimes)||"Not provided"}`),
+      excludeFromCustomerConversion:false
     };
-
-    const result = await sendLeadToGHL(lead);
-
-    return res.json({
-      ok: true,
-      message: "Lead received",
-      webhookSent: result.sent,
-    });
-  } catch (error) {
-    console.error("Lead error:", error);
-
-    return res.status(500).json({
-      ok: false,
-      message: "Lead capture failed",
-    });
+    lead.message=`${lead.conversationSummary} | Source: ${lead.source}`;
+    if (!lead.phone && !lead.email) return res.status(400).json({ok:false,message:"Phone or email is required."});
+    const result=await sendLead(lead);
+    if (result.sent) await analytics("ali_ghl_record_sent",{channel:lead.channel,callId:lead.callId,intent:lead.callType,source:lead.source});
+    return res.json({ok:true,message:"Lead received",webhookSent:result.sent,webhookReason:result.reason||""});
+  } catch(e) {
+    console.error("Lead error",e);
+    return res.status(500).json({ok:false,message:"Lead capture failed"});
   }
 });
 
-/* =========================================================
-   START SERVER
-========================================================= */
-
-const PORT = process.env.PORT || 10000;
-
-app.listen(PORT, () => {
-  console.log("Dynamic Touch AI server running on port", PORT);
-});
+const PORT=process.env.PORT||10000;
+if (process.env.NODE_ENV!=="test") app.listen(PORT,()=>console.log("Dynamic Touch AI server running on port",PORT));
+export { app };

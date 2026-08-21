@@ -1,7 +1,10 @@
 {
   "name": "dynamic-touch-ai",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
+  "scripts": {
+    "test": "node voice-intent.test.mjs"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5"
