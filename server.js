@@ -5,13 +5,15 @@ import { INTENTS, sourceFor, buildGhlPayload, eventNamesFor } from "./intent-cor
 const app = express();
 
 export const BUSINESS = Object.freeze({
+  infoVersion: "2026-10-30",
+  webAssistantName: "Ali",
   name: "Dynamic Touch Corrective Therapy",
   assistantName: "Mia",
   practitioner: "Ja'Red Wheeler",
-  phone: "(970) 682-3031",
+  phone: "970.517.4536",
   address: "873 Cleveland Ave, Loveland, CO 80537",
-  website: "https://www.painisntnormal.com",
-  bookingUrl: "https://www.vagaro.com/dtmzh6",
+  website: "https://painisntnormal.com",
+  bookingUrl: "https://www.vagaro.com/dtmzh6/services",
   commerceUrl: "https://www.vagaro.com/dtmzh6/memberships",
   voiceId: "56bWURjYFHyYyVf490Dp"
 });
@@ -37,14 +39,14 @@ BUSINESS FACTS
 Business: Dynamic Touch Corrective Therapy
 Public descriptor: Muscular Realignment Experts
 Practitioner: Ja'Red Wheeler
-Phone: (970) 682-3031
+Phone: 970.517.4536
 Address: 873 Cleveland Ave, Loveland, CO 80537
-Website: https://www.painisntnormal.com
-Booking: https://www.vagaro.com/dtmzh6
+Website: https://painisntnormal.com
+Booking: https://www.vagaro.com/dtmzh6/services
 Packages/memberships: https://www.vagaro.com/dtmzh6/memberships
 
 POSITIONING
-Muscular Realignment is Dynamic Touch's flagship, goal-focused bodywork approach for recurring muscular tension, restricted movement, and pain patterns that keep returning. It is not relaxation-first massage.
+Muscular Realignment is Dynamic Touch's flagship, goal-focused bodywork approach for recurring muscular tension, restricted movement, and pain patterns that keep returning. It is focused corrective therapy. Do not describe the service as massage.
 Process: Talk → Observe → Work → Recheck → Next Steps.
 Orthomyologic Manipulation is a secondary specialized hands-on offering. Do not invent details.
 
@@ -55,8 +57,24 @@ Starting logic: newer/isolated concern → usually 60m. Concern 6+ months, sever
 PACKAGES
 Reset 3 $300: 3x60m. Realign 6 $720: 6x75m, most popular. Total Reset 6 $825: 6x90m. Each may be shared with up to 3 family members/friends.
 
-1LIFE1BODY
-Reset $97/mo 1x60m. Corrective $149/mo 1x90m, most popular. Performance $229/mo 2x75m. Elite $349/mo 3x75m or 2x120m. Prenatal Support $169/mo 1 monthly prenatal Muscular Realignment. Do not invent policy terms.
+1LIFE1BODY WELLNESS PLANS — MONTHLY BILLING
+Prices below are monthly amounts for the stated commitment, not prepaid totals.
+Reset: one 60-minute session monthly. 6 months $102/month; 12 months $94/month.
+Corrective: one 90-minute session monthly. 6 months $142/month; 12 months $134/month.
+Complete: one 120-minute session monthly. 6 months $172/month; 12 months $164/month.
+Performance: two 75-minute sessions monthly. 6 months $252/month; 12 months $244/month.
+Elite option 1: three 75-minute sessions monthly. 6 months $382/month; 12 months $374/month.
+Elite option 2: two 120-minute sessions monthly. 6 months $352/month; 12 months $344/month.
+Prenatal Support: one 90-minute prenatal session monthly, $169/month, six-month term only. No twelve-month option.
+The six-month savings are $8 off the regular total monthly session value; twelve-month savings are $16 off that monthly total. Not per session. Prenatal is excluded from that discount rule.
+Silver, Bronze, Gold, and Platinum are legacy plans for existing members, not public enrollment options. Do not invent cancellation, rollover, or other policy terms.
+When asked about pricing, first establish session length or plan of interest; do not recite every service or plan.
+
+ONE-TIME NEW-CLIENT PERK
+Only when a new client objects to regular pricing: $80 for 60 minutes or $110 for 90 minutes. Not standard public pricing or a recurring discount. Keep any humor warm, brief, and varied; do not promise cross-call memory.
+
+INTAKE AND PRIVACY
+Clinical intake is handled through Vagaro. Never ask for payment-card data, medical records, or detailed health history in website chat. Direct clinical-intake details to Vagaro. Do not claim HIPAA compliance or unverified data retention practices.
 
 INTENT RULE — CLASSIFY BY PURPOSE, NOT IDENTITY
 Determine whom the call ultimately serves. Never classify solely from caller identity, phone number, automated/AI sound, or single keywords such as Google, AI, owner, services, pricing, availability, hours, appointment, or booking.
@@ -158,6 +176,18 @@ const SCHEMA = {
   required: ["reply","intent","intentConfidence","platformAgent","qualifiedLead","bookingAttempt","bookingHandoff","bookingOutcome","humanEscalation","resolvedWithoutHuman","shouldCreateOrUpdateGhl","customer","vendor","summary"]
 };
 
+export function assistantForChannel(channel) { return channel === "web" ? "Ali" : "Mia"; }
+export function promptForChannel(channel) {
+  if (channel !== "web") return SYSTEM_PROMPT;
+  return SYSTEM_PROMPT.replace(/Mia/g, "Ali").replace("Do not identify yourself as Ali.", "Do not identify yourself as Mia.") + `
+WEBSITE CHAT SCOPE
+You are Ali, the website virtual assistant. Mia answers Dynamic Touch phone calls.
+Answer general questions about services, prices, plans, preparation, and booking links.
+Do not solicit symptoms, concern duration, medical history, or clinical intake details. If someone offers health details, do not ask for more; direct intake to Vagaro.
+Do not solicit contact details for a lead unless the visitor asks for follow-up; do not claim a message, contact update, or escalation was delivered without runtime confirmation.
+`;
+}
+
 const submitted = new Map();
 
 function clean(v="") { return String(v ?? "").replace(/^[\s:,-]+|[\s,.;]+$/g,"").replace(/\s+/g," ").trim(); }
@@ -195,7 +225,7 @@ async function sendLead(payload) {
 }
 
 async function analytics(name, props={}) {
-  const event = {event:name,assistant:"Mia",timestamp:new Date().toISOString(),...props};
+  const event = {event:name,assistant:assistantForChannel(props.channel),timestamp:new Date().toISOString(),...props};
   // Legacy marker intentionally retained for log-parser compatibility.
   console.log("ALI_EVENT",JSON.stringify(event));
   if (!process.env.ANALYTICS_WEBHOOK_URL) return {sent:false,reason:"missing-analytics-webhook",event};
@@ -213,7 +243,7 @@ async function aiTurn(messages, ctx) {
     body:JSON.stringify({
       model:process.env.OPENAI_MODEL || "gpt-4.1-mini",
       temperature:0.35,
-      messages:[{role:"system",content:SYSTEM_PROMPT},{role:"system",content:`RUNTIME CONTEXT (facts only): ${JSON.stringify(ctx)}`},...messages],
+      messages:[{role:"system",content:promptForChannel(ctx.channel)},{role:"system",content:`RUNTIME CONTEXT (facts only): ${JSON.stringify(ctx)}`},...messages],
       response_format:{type:"json_schema",json_schema:{name:"ali_turn",strict:true,schema:SCHEMA}}
     })
   });
@@ -231,6 +261,7 @@ async function aiTurn(messages, ctx) {
 }
 
 async function processTurn(req,res,channel) {
+  const assistant = assistantForChannel(channel);
   try {
     const messages=messagesOf(req.body?.messages);
     if (!messages.length) return res.status(400).json({ok:false,reply:"Please send a message so I can help."});
@@ -245,13 +276,13 @@ async function processTurn(req,res,channel) {
       else ghl=await sendLead(buildGhlPayload(turn,ctx));
     }
 
-    const base={channel,callId:ctx.callId,intent:turn.intent,source:sourceFor(turn,ctx),assistant:"Mia"};
+    const base={channel,callId:ctx.callId,intent:turn.intent,source:sourceFor(turn,ctx),assistant};
     const names=eventNamesFor(turn,channel);
     if (ghl.sent) names.push("ali_ghl_record_sent");
     const eventResults=await Promise.all([...new Set(names)].map(n=>analytics(n,base)));
 
     return res.json({
-      ok:true, assistant:"Mia", reply:turn.reply, intent:turn.intent, intentConfidence:turn.intentConfidence,
+      ok:true, assistant, reply:turn.reply, intent:turn.intent, intentConfidence:turn.intentConfidence,
       source:sourceFor(turn,ctx), platformAgent:turn.platformAgent, qualifiedLead:turn.qualifiedLead,
       bookingAttempt:turn.bookingAttempt, bookingHandoff:turn.bookingHandoff, bookingOutcome:turn.bookingOutcome,
       humanEscalation:turn.humanEscalation, resolvedWithoutHuman:turn.resolvedWithoutHuman,
@@ -261,12 +292,12 @@ async function processTurn(req,res,channel) {
     });
   } catch(e) {
     console.error(`${channel} turn error`,e);
-    return res.status(500).json({ok:false,assistant:"Mia",reply:channel==="voice"?"I'm having trouble connecting right now. You can book at painisntnormal.com or call back shortly.":"AI service is temporarily unavailable. Please try again in a moment."});
+    return res.status(500).json({ok:false,assistant,reply:channel==="voice"?"I'm having trouble connecting right now. You can book at painisntnormal.com or call back shortly.":"AI service is temporarily unavailable. Please try again in a moment."});
   }
 }
 
 app.get("/",(req,res)=>res.json({
-  ok:true,service:"Dynamic Touch AI running",assistant:"Mia",brainVersion:"voice-intent-v1",
+  ok:true,service:"Dynamic Touch AI running",assistant:"Mia",brainVersion:"voice-intent-v1",businessInfoVersion:BUSINESS.infoVersion,webAssistant:BUSINESS.webAssistantName,
   voiceId:BUSINESS.voiceId,voiceEndpoint:"/voice/turn",leadCapture:"enabled",
   analyticsWebhookConfigured:Boolean(process.env.ANALYTICS_WEBHOOK_URL),liveVagaroAvailability:false
 }));
@@ -290,8 +321,8 @@ app.post("/voice/finalize",async(req,res)=>{
 app.post("/lead",async(req,res)=>{
   try {
     const lead={
-      source:clean(req.body?.source||"Mia Website Chat"),channel:clean(req.body?.channel||"web"),callId:clean(req.body?.callId),
-      callType:clean(req.body?.callType||INTENTS.PROSPECT),tags:Array.isArray(req.body?.tags)?req.body.tags:["Mia - Prospective Client"],
+      source:clean(req.body?.source||(req.body?.channel==="voice"?"Mia Voice":"Ali Website Chat")),channel:clean(req.body?.channel||"web"),callId:clean(req.body?.callId),
+      callType:clean(req.body?.callType||INTENTS.PROSPECT),tags:Array.isArray(req.body?.tags)?req.body.tags:[`${assistantForChannel(req.body?.channel || "web")} - Prospective Client`],
       name:clean(req.body?.name),phone:clean(req.body?.phone),email:clean(req.body?.email),
       mainIssue:clean(req.body?.mainIssue),howLong:clean(req.body?.howLong),preferredTimes:clean(req.body?.preferredTimes),
       bookingAttempt:req.body?.bookingAttempt===true,bookingHandoff:req.body?.bookingHandoff===true,
@@ -303,11 +334,11 @@ app.post("/lead",async(req,res)=>{
     lead.message=`${lead.conversationSummary} | Source: ${lead.source}`;
     if (!lead.phone && !lead.email) return res.status(400).json({ok:false,message:"Phone or email is required."});
     const result=await sendLead(lead);
-    if (result.sent) await analytics("ali_ghl_record_sent",{channel:lead.channel,callId:lead.callId,intent:lead.callType,source:lead.source,assistant:"Mia"});
-    return res.json({ok:true,assistant:"Mia",message:"Lead received",webhookSent:result.sent,webhookReason:result.reason||""});
+    if (result.sent) await analytics("ali_ghl_record_sent",{channel:lead.channel,callId:lead.callId,intent:lead.callType,source:lead.source,assistant:assistantForChannel(lead.channel)});
+    return res.json({ok:true,assistant:assistantForChannel(lead.channel),message:"Lead received",webhookSent:result.sent,webhookReason:result.reason||""});
   } catch(e) {
     console.error("Lead error",e);
-    return res.status(500).json({ok:false,assistant:"Mia",message:"Lead capture failed"});
+    return res.status(500).json({ok:false,assistant:assistantForChannel(req.body?.channel || "web"),message:"Lead capture failed"});
   }
 });
 

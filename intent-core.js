@@ -14,11 +14,11 @@ export function sourceFor(turn, ctx) {
   if (turn.intent === INTENTS.THIRD_PARTY) {
     return `${turn.platformAgent || ""} ${ctx.representingPlatform || ""}`.toLowerCase().includes("google") ? "Google AI / GBP" : "Third-Party Customer Agent";
   }
-  if (turn.intent === INTENTS.SOLICITATION) return "Mia Voice - Solicitation";
-  if (turn.intent === INTENTS.EXISTING) return "Mia Voice - Existing Client";
-  if (turn.intent === INTENTS.INFO) return "Mia Voice - Business Information";
-  if (turn.intent === INTENTS.ESCALATION) return "Mia Voice - Human Escalation";
-  return ctx.channel === "voice" ? "Mia Voice" : "Mia Website Chat";
+  if (turn.intent === INTENTS.SOLICITATION) return ctx.channel === "web" ? "Ali Website Chat - Solicitation" : "Mia Voice - Solicitation";
+  if (turn.intent === INTENTS.EXISTING) return ctx.channel === "web" ? "Ali Website Chat - Existing Client" : "Mia Voice - Existing Client";
+  if (turn.intent === INTENTS.INFO) return ctx.channel === "web" ? "Ali Website Chat - Business Information" : "Mia Voice - Business Information";
+  if (turn.intent === INTENTS.ESCALATION) return ctx.channel === "web" ? "Ali Website Chat - Human Escalation" : "Mia Voice - Human Escalation";
+  return ctx.channel === "voice" ? "Mia Voice" : "Ali Website Chat";
 }
 
 export function tagsFor(intent, platformAgent="") {
@@ -36,7 +36,7 @@ export function buildGhlPayload(turn, ctx) {
   const common = {
     source, channel: ctx.channel, callId: ctx.callId, callType: turn.intent,
     intentConfidence: turn.intentConfidence, platformAgent: clean(turn.platformAgent || ctx.representingPlatform),
-    tags: tagsFor(turn.intent, clean(turn.platformAgent || ctx.representingPlatform)),
+    tags: tagsFor(turn.intent, clean(turn.platformAgent || ctx.representingPlatform)).map(tag => ctx.channel === "web" ? tag.replace(/Mia/g, "Ali") : tag),
     qualifiedLead: turn.qualifiedLead, bookingAttempt: turn.bookingAttempt, bookingHandoff: turn.bookingHandoff,
     bookingOutcome: turn.bookingOutcome, humanEscalation: turn.humanEscalation,
     resolvedWithoutHuman: turn.resolvedWithoutHuman, conversationSummary: clean(turn.summary),

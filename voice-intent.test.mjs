@@ -51,6 +51,6 @@ assert.ok(eventNamesFor({...vendorTurn,resolvedWithoutHuman:true}).includes("ali
 const prospectTurn={...thirdPartyTurn,intent:INTENTS.PROSPECT,platformAgent:""};
 assert.equal(sourceFor(prospectTurn,{...ctx,representingPlatform:""}),"Mia Voice");
 assert.ok(buildGhlPayload(prospectTurn,{...ctx,representingPlatform:""}).tags.includes("Mia - Prospective Client"));
-assert.equal(sourceFor(prospectTurn,{...ctx,channel:"web",representingPlatform:""}),"Mia Website Chat");
+assert.equal(sourceFor(prospectTurn,{...ctx,channel:"web",representingPlatform:""}),"Ali Website Chat");
 
 console.log(`PASS ${cases.length} required intent scenarios + Mia CRM labels + legacy analytics compatibility safeguards`);
