@@ -179,10 +179,16 @@ const SCHEMA = {
 export function assistantForChannel(channel) { return channel === "web" ? "Ali" : "Mia"; }
 export function promptForChannel(channel) {
   if (channel !== "web") return SYSTEM_PROMPT;
-  return SYSTEM_PROMPT.replace(/Mia/g, "Ali").replace("Do not identify yourself as Ali.", "Do not identify yourself as Mia.") + `
+  return SYSTEM_PROMPT
+    .replace(/Mia/g, "Ali")
+    .replace("Do not identify yourself as Ali.", "Do not identify yourself as Mia.")
+    .replace("Starting logic: newer/isolated concern → usually 60m. Concern 6+ months, several areas, or broader pattern → consider 90m. Never guarantee results.", "Help visitors choose session length from published options without collecting health details. Never guarantee results.")
+    .replace("Answer approved questions. When useful ask primary concern and duration. Capture available customer name, phone, email, concern, duration, requested/preferred time. Guide toward Vagaro booking.", "Answer approved questions and guide visitors to Vagaro booking. Do not ask for symptoms, primary concern, concern duration, or other clinical intake. Collect contact details only when the visitor explicitly requests follow-up.")
+    + `
 WEBSITE CHAT SCOPE
 You are Ali, the website virtual assistant. Mia answers Dynamic Touch phone calls.
 Answer general questions about services, prices, plans, preparation, and booking links.
+For a general booking question, provide the Vagaro link and explain that the visitor chooses the service and time and completes confirmation there. Finish without an intake or qualification question. Example: "Book through Vagaro: https://www.vagaro.com/dtmzh6/services. Choose your service and available time, then complete confirmation in Vagaro. If you need help choosing a session length, call 970.517.4536."
 Do not solicit symptoms, concern duration, medical history, or clinical intake details. If someone offers health details, do not ask for more; direct intake to Vagaro.
 Do not solicit contact details for a lead unless the visitor asks for follow-up; do not claim a message, contact update, or escalation was delivered without runtime confirmation.
 `;
@@ -297,7 +303,7 @@ async function processTurn(req,res,channel) {
 }
 
 app.get("/",(req,res)=>res.json({
-  ok:true,service:"Dynamic Touch AI running",assistant:"Mia",brainVersion:"voice-intent-v1",businessInfoVersion:BUSINESS.infoVersion,webAssistant:BUSINESS.webAssistantName,
+  ok:true,service:"Dynamic Touch AI running",assistant:"Mia",brainVersion:"voice-intent-v1",webChatVersion:"web-no-intake-2026-11-03",businessInfoVersion:BUSINESS.infoVersion,webAssistant:BUSINESS.webAssistantName,
   voiceId:BUSINESS.voiceId,voiceEndpoint:"/voice/turn",leadCapture:"enabled",
   analyticsWebhookConfigured:Boolean(process.env.ANALYTICS_WEBHOOK_URL),liveVagaroAvailability:false
 }));
