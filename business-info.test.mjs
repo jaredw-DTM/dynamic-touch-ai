@@ -14,6 +14,9 @@ for (const channel of ['web','voice']) {
  assert.doesNotMatch(prompt,/682-3031|\$97\/mo|\$149\/mo|\$229\/mo|\$349\/mo/);
 }
 assert.match(promptForChannel('web'),/Do not solicit symptoms/);
+assert.doesNotMatch(promptForChannel('web'), /When useful ask primary concern and duration|Concern 6\+ months/);
+assert.match(promptForChannel('web'), /Finish without an intake or qualification question/);
+assert.match(promptForChannel('voice'), /When useful ask primary concern and duration/);
 assert.match(promptForChannel('voice'),/Do not identify yourself as Ali/);
 const fetchOriginal = globalThis.fetch;
 process.env.OPENAI_API_KEY = 'local-test-only';
